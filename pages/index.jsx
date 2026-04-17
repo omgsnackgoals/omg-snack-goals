@@ -114,8 +114,8 @@ const COMMUNITY_SNACKS = [
   {id:"c15",reviewer:"Miraya",avatarEmoji:"🥨",name:"Legendary Protein Pastry",brand:"Legendary Foods",category:"Protein Snacks",rating:2,flavors:["Sweet","Doughy"],notes:"Looks like a Pop-Tart, eats like chalk. The frosting is aggressively fake-sweet. Couldn't finish it. Love the concept, hate the execution.",date:"2026-03-18",wba:false,newsletter:"Protein Snacks: A Roundup 💪"},
 ];
 
-/* ─── Inject fonts + CSS ─── */
-(() => {
+/* ─── Inject fonts + CSS (browser only) ─── */
+if (typeof document !== "undefined") {
   const l = document.createElement("link");
   l.rel = "stylesheet";
   l.href = "https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Nunito+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap";
@@ -139,7 +139,7 @@ const COMMUNITY_SNACKS = [
     ::-webkit-scrollbar-thumb{background:${B.border};border-radius:99px}
   `;
   document.head.appendChild(s);
-})();
+}
 
 const rc = r => r>=8?B.coral:r>=6?B.yellow:B.blue;
 const rb = r => r>=8?B.coralBg:r>=6?B.yellowBg:B.blueBg;
@@ -823,3 +823,4 @@ export default function App() {
     </div>
   );
 }
+
