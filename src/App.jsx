@@ -661,8 +661,8 @@ function RecsTab({snacks}) {
       <div style={{background:B.yellowBg,border:`2px solid ${B.yellow}`,borderRadius:18,padding:"18px 22px",marginBottom:20,display:"flex",alignItems:"center",gap:14}}>
         <div style={{fontSize:32}}>🧬</div>
         <div>
-          <div style={{fontFamily:F,fontWeight:900,fontSize:15,color:B.ink,marginBottom:2}}>AI Snack Recs — powered by Claude</div>
-          <div style={{fontFamily:FS,fontSize:13,color:B.mid,lineHeight:1.5}}>Tell us your craving and we'll suggest snacks based on your flavor profile and community picks.</div>
+          <div style={{fontFamily:F,fontWeight:900,fontSize:15,color:B.ink,marginBottom:2}}> Snack Recs ✨ </div>
+          <div style={{fontFamily:FS,fontSize:13,color:B.mid,lineHeight:1.5}}>Tell us what your craving and we'll suggest snacks based on your flavor profile and community picks.</div>
         </div>
       </div>
       <div style={{marginBottom:20}}>
