@@ -221,7 +221,6 @@ function AuthScreen({onAuth}) {
     if(mode==="signup") {
       const res = await sb.signUp(email, pass, name);
       if(res.error) { setError(res.error.message); setLoading(false); return; }
-      setSuccess("Check your email to confirm your account, then log in!");
       setMode("login"); setLoading(false);
     } else {
       const res = await sb.signIn(email, pass);
