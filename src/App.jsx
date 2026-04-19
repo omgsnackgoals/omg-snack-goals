@@ -221,7 +221,12 @@ function AuthScreen({onAuth}) {
     if(mode==="signup") {
       const res = await sb.signUp(email, pass, name);
       if(res.error) { setError(res.error.message); setLoading(false); return; }
-      setMode("login"); setLoading(false);
+      const loginRes = await sb.signIn(email, pass);
+if(loginRes.access_token) {
+  onAuth(loginRes.user, loginRes.access_token);
+} else {
+  setMode("login");
+}; setLoading(false);
     } else {
       const res = await sb.signIn(email, pass);
       if(res.error) { setError(res.error.message); setLoading(false); return; }
