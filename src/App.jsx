@@ -69,60 +69,10 @@ const sb = {
       headers: sb.authHeaders(token),
     });
   },
-
-  async getCommunitySnacks() {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/community_snacks?approved=eq.true&order=submitted_at.desc`, {
-      headers: sb.headers,
-    });
-    return r.json();
-  },
-
-  async addToCommunity(token, snack, reviewerName) {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/community_snacks`, {
-      method: "POST",
-      headers: { ...sb.authHeaders(token), "Prefer": "return=representation" },
-      body: JSON.stringify({ ...snack, reviewer_name: reviewerName, approved: true, user_id: snack.user_id }),
-    });
-    return r.json();
-  },
-
-  async submitToCommunity(token, snack, userId, reviewerName) {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/community_snacks`, {
-      method: "POST",
-      headers: { ...sb.authHeaders(token), "Prefer": "return=representation" },
-      body: JSON.stringify({ ...snack, user_id: userId, reviewer_name: reviewerName, approved: false }),
-    });
-    return r.json();
-  },
-
-  async getPendingSubmissions(token) {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/community_snacks?approved=eq.false&order=submitted_at.asc`, {
-      headers: sb.authHeaders(token),
-    });
-    return r.json();
-  },
-
-  async approveSubmission(token, id) {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/community_snacks?id=eq.${id}`, {
-      method: "PATCH",
-      headers: { ...sb.authHeaders(token), "Prefer": "return=representation" },
-      body: JSON.stringify({ approved: true }),
-    });
-    return r.json();
-  },
-
-  async rejectSubmission(token, id) {
-    await fetch(`${SUPABASE_URL}/rest/v1/community_snacks?id=eq.${id}`, {
-      method: "DELETE",
-      headers: sb.authHeaders(token),
-    });
-  },
 };
 
 /* ─── DEMO MODE (when Supabase not configured) ─── */
 const IS_DEMO = SUPABASE_URL === "YOUR_SUPABASE_URL";
-const FORCE_GUEST = false; // no auth wall
-const ADMIN_EMAIL = "mirayaberke@gmail.com"; // Admin email - only this user sees admin controls
 
 /* ─── Brand tokens ─── */
 const B = {
@@ -241,8 +191,8 @@ function Spinner() {
 /* ═══════════════════════════════════════════════════
    AUTH SCREEN
 ═══════════════════════════════════════════════════ */
-function AuthScreen({onAuth, initialMode="login"}) {
-  const [mode,setMode]   = useState(initialMode); // login | signup
+function AuthScreen({onAuth}) {
+  const [mode,setMode]   = useState("login"); // login | signup
   const [name,setName]   = useState("");
   const [email,setEmail] = useState("");
   const [pass,setPass]   = useState("");
@@ -271,8 +221,12 @@ function AuthScreen({onAuth, initialMode="login"}) {
     if(mode==="signup") {
       const res = await sb.signUp(email, pass, name);
       if(res.error) { setError(res.error.message); setLoading(false); return; }
-      setSuccess("Check your email to confirm your account, then log in!");
-      setMode("login"); setLoading(false);
+      const loginRes = await sb.signIn(email, pass);
+if(loginRes.access_token) {
+  onAuth(loginRes.user, loginRes.access_token);
+} else {
+  setMode("login");
+}; setLoading(false);
     } else {
       const res = await sb.signIn(email, pass);
       if(res.error) { setError(res.error.message); setLoading(false); return; }
@@ -282,12 +236,22 @@ function AuthScreen({onAuth, initialMode="login"}) {
   };
 
   return (
-    <div style={{background:B.white,borderRadius:24,padding:"28px 28px 32px"}}>
-      <div style={{textAlign:"center",marginBottom:20}}>
-        <Logo sm/>
-        <p style={{fontFamily:FS,fontSize:14,color:B.mid,marginTop:10,lineHeight:1.6}}>Log snacks · Build your flavor profile · Get recs</p>
-      </div>
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
+      {/* Top checker hero */}
+      <Checker style={{padding:"40px 20px 0",flexShrink:0}}>
+        <div style={{maxWidth:420,margin:"0 auto",background:"rgba(255,255,255,.93)",borderRadius:"20px 20px 0 0",padding:"32px 32px 24px",textAlign:"center"}}>
+          <Logo/>
+          <p style={{fontFamily:FS,fontSize:15,color:B.mid,marginTop:14,lineHeight:1.65}}>
+            Log every chip, pickle, and chocolate bar.<br/>
+            Build your flavor profile. Get recs made for you.
+          </p>
+        </div>
+      </Checker>
+      <Squiggle color="rgba(255,255,255,.93)" h={22}/>
 
+      {/* Auth card */}
+      <div style={{flex:1,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"0 20px 60px"}}>
+        <div className="pop" style={{background:B.white,borderRadius:24,width:"100%",maxWidth:420,padding:"28px 28px 32px",boxShadow:"0 8px 40px rgba(0,0,0,.1)",marginTop:8}}>
 
           {/* Tab toggle */}
           <div style={{display:"flex",background:B.cream,borderRadius:14,padding:4,marginBottom:24,gap:4}}>
@@ -354,6 +318,7 @@ function AuthScreen({onAuth, initialMode="login"}) {
               {mode==="login"?"Sign Up":"Log In"}
             </button>
           </div>
+        </div>
       </div>
     </div>
   );
@@ -395,7 +360,7 @@ function FlavorPicker({selected,onChange}) {
 }
 
 /* ─── Snack Card ─── */
-function SnackCard({snack,onClick,showReviewer=false,onCommunityAdd,onCommunitySubmit}) {
+function SnackCard({snack,onClick,showReviewer=false}) {
   return (
     <div className="lift pop" onClick={()=>onClick&&onClick(snack)} style={{
       background:B.white,borderRadius:18,cursor:onClick?"pointer":"default",
@@ -431,19 +396,6 @@ function SnackCard({snack,onClick,showReviewer=false,onCommunityAdd,onCommunityS
           <span style={{fontFamily:FS,fontSize:11,color:B.muted}}>{snack.date}</span>
           {snack.wba&&<span style={{fontFamily:F,fontWeight:700,fontSize:11,color:B.blue}}>✓ buy again</span>}
         </div>
-        {(onCommunityAdd||onCommunitySubmit)&&(
-          <button
-            onClick={e=>{e.stopPropagation();onCommunityAdd?onCommunityAdd(snack):onCommunitySubmit(snack);}}
-            className="press"
-            style={{
-              marginTop:10,width:"100%",padding:"7px",borderRadius:10,
-              border:`1.5px solid ${onCommunityAdd?B.yellow:B.blue}`,
-              background:onCommunityAdd?B.yellowBg:B.blueBg,
-              color:onCommunityAdd?B.ink:B.blue,
-              fontFamily:F,fontWeight:700,fontSize:12,cursor:"pointer",
-            }}
-          >{onCommunityAdd?"✨ Add to Community":"🙋 Submit to Community"}</button>
-        )}
       </div>
     </div>
   );
@@ -585,7 +537,7 @@ function DetailModal({snack,onClose,onEdit,onDelete,readOnly=false}) {
 }
 
 /* ─── LOG TAB ─── */
-function LogTab({snacks,onCardClick,loading,session,onCommunityAction}) {
+function LogTab({snacks,onCardClick,loading}) {
   const [filter,setFilter]=useState("All");
   const [sort,setSort]=useState("newest");
   const [q,setQ]=useState("");
@@ -595,20 +547,6 @@ function LogTab({snacks,onCardClick,loading,session,onCommunityAction}) {
   const cats=["All",...new Set(snacks.map(s=>s.category))];
   const shown=snacks.filter(s=>filter==="All"||s.category===filter).filter(s=>!q||s.name.toLowerCase().includes(q.toLowerCase())||s.brand.toLowerCase().includes(q.toLowerCase())).sort((a,z)=>sort==="newest"?new Date(z.date)-new Date(a.date):sort==="top"?z.rating-a.rating:sort==="low"?a.rating-z.rating:a.name.localeCompare(z.name));
   const avg=snacks.length?(snacks.reduce((s,x)=>s+x.rating,0)/snacks.length).toFixed(1):"—";
-
-  if(!session) return (
-    <div style={{textAlign:"center",padding:"60px 20px"}}>
-      <div style={{fontSize:52,marginBottom:14}}>🥨</div>
-      <div style={{fontFamily:F,fontWeight:900,fontSize:22,color:B.ink,marginBottom:10}}>Your personal snack diary</div>
-      <div style={{fontFamily:FS,fontSize:15,color:B.mid,lineHeight:1.6,marginBottom:24}}>
-        Create a free account to start logging snacks,<br/>build your flavor profile, and get personalized recs!
-      </div>
-      <button onClick={()=>onCommunityAction&&onCommunityAction(null,"signup")} className="press" style={{padding:"14px 32px",borderRadius:14,border:"none",background:B.coral,color:B.white,cursor:"pointer",fontFamily:F,fontWeight:900,fontSize:16,boxShadow:"0 4px 20px rgba(240,123,107,.45)"}}>
-        Sign up free 🥨
-      </button>
-      <div style={{marginTop:14,fontFamily:FS,fontSize:13,color:B.muted}}>Already have an account? <button onClick={()=>onCommunityAction&&onCommunityAction(null,"login")} style={{background:"none",border:"none",color:B.coral,fontFamily:F,fontWeight:800,fontSize:13,cursor:"pointer",textDecoration:"underline"}}>Log in</button></div>
-    </div>
-  );
 
   if(snacks.length===0) return (
     <div style={{textAlign:"center",padding:"70px 20px"}}>
@@ -639,157 +577,48 @@ function LogTab({snacks,onCardClick,loading,session,onCommunityAction}) {
         {cats.map(c=><button key={c} className="press" onClick={()=>setFilter(c)} style={{padding:"6px 14px",borderRadius:20,cursor:"pointer",border:`2px solid ${filter===c?B.blue:B.border}`,background:filter===c?B.blueBg:B.white,color:filter===c?B.blue:B.mid,fontFamily:F,fontWeight:700,fontSize:12,transition:"all .14s"}}>{c}</button>)}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:14}}>
-        {shown.map(s=>(
-          <SnackCard
-            key={s.id}
-            snack={s}
-            onClick={onCardClick}
-            onCommunityAdd={session?.user?.email===ADMIN_EMAIL?s=>onCommunityAction&&onCommunityAction(s,"add"):null}
-            onCommunitySubmit={session?.user?.email!==ADMIN_EMAIL?s=>onCommunityAction&&onCommunityAction(s,"submit"):null}
-          />
-        ))}
+        {shown.map(s=><SnackCard key={s.id} snack={s} onClick={onCardClick}/>)}
       </div>
     </div>
   );
 }
 
 /* ─── COMMUNITY TAB ─── */
-function CommunityTab({session}) {
+function CommunityTab() {
   const [filter,setFilter]=useState("All");
   const [sort,setSort]=useState("top");
   const [q,setQ]=useState("");
   const [detail,setDetail]=useState(null);
-  const [snacks,setSnacks]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [pending,setPending]=useState([]);
-  const [showAdmin,setShowAdmin]=useState(false);
-  const [actionMsg,setActionMsg]=useState(null);
 
-  const isAdmin = session?.user?.email === ADMIN_EMAIL;
-
-  useEffect(()=>{
-    loadCommunity();
-    if(isAdmin) loadPending();
-  },[]);
-
-  const loadCommunity = async() => {
-    setLoading(true);
-    if(IS_DEMO){
-      setSnacks(COMMUNITY_SNACKS);
-      setLoading(false);
-      return;
-    }
-    try{
-      const data = await sb.getCommunitySnacks();
-      if(Array.isArray(data) && data.length > 0) setSnacks(data);
-      else setSnacks(COMMUNITY_SNACKS); // fallback to hardcoded
-    }catch{ setSnacks(COMMUNITY_SNACKS); }
-    setLoading(false);
-  };
-
-  const loadPending = async() => {
-    if(IS_DEMO||!session) return;
-    try{
-      const data = await sb.getPendingSubmissions(session.token);
-      if(Array.isArray(data)) setPending(data);
-    }catch{}
-  };
-
-  const approve = async(id) => {
-    await sb.approveSubmission(session.token, id);
-    setActionMsg("✅ Approved!");
-    setPending(p=>p.filter(s=>s.id!==id));
-    loadCommunity();
-    setTimeout(()=>setActionMsg(null),2000);
-  };
-
-  const reject = async(id) => {
-    await sb.rejectSubmission(session.token, id);
-    setActionMsg("🗑 Rejected");
-    setPending(p=>p.filter(s=>s.id!==id));
-    setTimeout(()=>setActionMsg(null),2000);
-  };
-
-  const cats=["All",...new Set(snacks.map(s=>s.category).filter(Boolean))];
-  const shown=snacks
-    .filter(s=>filter==="All"||s.category===filter)
-    .filter(s=>!q||s.name?.toLowerCase().includes(q.toLowerCase())||s.brand?.toLowerCase().includes(q.toLowerCase()))
-    .sort((a,z)=>sort==="top"?z.rating-a.rating:sort==="newest"?new Date(z.submitted_at||z.date)-new Date(a.submitted_at||a.date):a.name?.localeCompare(z.name));
-  const top3=[...snacks].sort((a,b)=>b.rating-a.rating).slice(0,3);
+  const cats=["All",...new Set(COMMUNITY_SNACKS.map(s=>s.category))];
+  const shown=COMMUNITY_SNACKS.filter(s=>filter==="All"||s.category===filter).filter(s=>!q||s.name.toLowerCase().includes(q.toLowerCase())||s.brand.toLowerCase().includes(q.toLowerCase())).sort((a,z)=>sort==="top"?z.rating-a.rating:sort==="newest"?new Date(z.date)-new Date(a.date):a.name.localeCompare(z.name));
+  const top3=[...COMMUNITY_SNACKS].sort((a,b)=>b.rating-a.rating).slice(0,3);
 
   return (
     <div>
-      {/* Hero */}
       <div style={{borderRadius:18,overflow:"hidden",marginBottom:22,boxShadow:"0 4px 20px rgba(0,0,0,.08)"}}>
         <Checker style={{padding:"22px 24px 0"}}>
           <div style={{background:"rgba(255,255,255,.93)",borderRadius:"14px 14px 0 0",padding:"18px 20px"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-              <div>
-                <div style={{fontFamily:F,fontWeight:900,fontSize:20,color:B.ink,marginBottom:3}}>Community Picks 🏆</div>
-                <div style={{fontFamily:FS,fontSize:14,color:B.mid,lineHeight:1.5,marginBottom:14}}>
-                  Real reviews from real snack obsessives. Log a snack you love and submit it to be featured here!
-                </div>
-              </div>
-              {isAdmin&&(
-                <button onClick={()=>setShowAdmin(!showAdmin)} className="press" style={{
-                  padding:"8px 14px",borderRadius:12,border:`2px solid ${pending.length>0?B.coral:B.border}`,
-                  background:pending.length>0?B.coralBg:B.white,
-                  color:pending.length>0?B.coral:B.mid,
-                  fontFamily:F,fontWeight:800,fontSize:12,cursor:"pointer",whiteSpace:"nowrap",
-                }}>
-                  {pending.length>0?`⏳ ${pending.length} Pending`:"Admin Panel"}
-                </button>
-              )}
+            <div style={{fontFamily:F,fontWeight:900,fontSize:20,color:B.ink,marginBottom:3}}>Community Picks 🏆</div>
+            <div style={{fontFamily:FS,fontSize:14,color:B.mid,lineHeight:1.5,marginBottom:14}}>
+              Real reviews from real snack obsessives. Right now that's just <strong style={{color:B.coral}}>Miraya</strong> — as more people join, the best community-rated snacks will surface here too. 🥨
             </div>
-
-            {/* Admin Panel */}
-            {isAdmin&&showAdmin&&(
-              <div style={{borderTop:`2px solid ${B.border}`,paddingTop:14,marginTop:4}}>
-                <div style={{fontFamily:F,fontWeight:800,fontSize:13,color:B.ink,marginBottom:10}}>
-                  {pending.length>0?`${pending.length} submission${pending.length!==1?"s":""} waiting for review:`:"No pending submissions 🎉"}
+            <div style={{fontFamily:F,fontWeight:800,fontSize:12,textTransform:"uppercase",letterSpacing:1,color:B.muted,marginBottom:8}}>🔥 Top Rated Right Now</div>
+            <div style={{display:"flex",flexDirection:"column",gap:7,paddingBottom:4}}>
+              {top3.map((s,i)=>(
+                <div key={s.id} onClick={()=>setDetail(s)} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"8px 10px",borderRadius:10,background:i===0?B.coralBg:B.white,border:`1.5px solid ${i===0?B.coral+"44":B.border}`,transition:"transform .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.transform="translateX(3px)"}
+                  onMouseLeave={e=>e.currentTarget.style.transform=""}>
+                  <div style={{fontSize:16,width:22,textAlign:"center"}}>{i===0?"🥇":i===1?"🥈":"🥉"}</div>
+                  <div style={{flex:1}}><div style={{fontFamily:F,fontWeight:800,fontSize:13,color:B.ink}}>{s.name}</div><div style={{fontFamily:FS,fontSize:11,color:B.muted}}>{s.brand}</div></div>
+                  <div style={{fontFamily:F,fontWeight:900,fontSize:15,color:rc(s.rating)}}>{s.rating}/10</div>
                 </div>
-                {actionMsg&&<div style={{fontFamily:FS,fontSize:13,color:B.mid,marginBottom:8}}>{actionMsg}</div>}
-                {pending.map(s=>(
-                  <div key={s.id} style={{background:B.cream,borderRadius:12,padding:"12px 14px",marginBottom:8,border:`1.5px solid ${B.border}`}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-                      <div>
-                        <div style={{fontFamily:F,fontWeight:800,fontSize:14,color:B.ink}}>{s.name}</div>
-                        <div style={{fontFamily:FS,fontSize:12,color:B.muted}}>{s.brand} · by {s.reviewer_name||"Anonymous"} · {s.rating}/10</div>
-                      </div>
-                      <div style={{display:"flex",gap:6}}>
-                        <button onClick={()=>approve(s.id)} className="press" style={{padding:"6px 12px",borderRadius:10,border:"none",background:B.blue,color:B.white,cursor:"pointer",fontFamily:F,fontWeight:700,fontSize:12}}>✓ Approve</button>
-                        <button onClick={()=>reject(s.id)} className="press" style={{padding:"6px 12px",borderRadius:10,border:`1.5px solid ${B.border}`,background:B.white,color:"#d94f4f",cursor:"pointer",fontFamily:F,fontWeight:700,fontSize:12}}>✕ Reject</button>
-                      </div>
-                    </div>
-                    {s.notes&&<div style={{fontFamily:FS,fontStyle:"italic",fontSize:12,color:B.mid}}>"{s.notes}"</div>}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Top 3 */}
-            {top3.length>0&&!showAdmin&&(
-              <>
-                <div style={{fontFamily:F,fontWeight:800,fontSize:12,textTransform:"uppercase",letterSpacing:1,color:B.muted,marginBottom:8}}>🔥 Top Rated Right Now</div>
-                <div style={{display:"flex",flexDirection:"column",gap:7,paddingBottom:4}}>
-                  {top3.map((s,i)=>(
-                    <div key={s.id||i} onClick={()=>setDetail(s)} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"8px 10px",borderRadius:10,background:i===0?B.coralBg:B.white,border:`1.5px solid ${i===0?B.coral+"44":B.border}`,transition:"transform .15s"}}
-                      onMouseEnter={e=>e.currentTarget.style.transform="translateX(3px)"}
-                      onMouseLeave={e=>e.currentTarget.style.transform=""}>
-                      <div style={{fontSize:16,width:22,textAlign:"center"}}>{i===0?"🥇":i===1?"🥈":"🥉"}</div>
-                      <div style={{flex:1}}><div style={{fontFamily:F,fontWeight:800,fontSize:13,color:B.ink}}>{s.name}</div><div style={{fontFamily:FS,fontSize:11,color:B.muted}}>{s.brand}</div></div>
-                      <div style={{fontFamily:F,fontWeight:900,fontSize:15,color:rc(s.rating)}}>{s.rating}/10</div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+              ))}
+            </div>
           </div>
         </Checker>
         <Squiggle color="rgba(255,255,255,.93)" h={20}/>
       </div>
-
-      {/* Filters */}
       <div style={{display:"flex",gap:10,marginBottom:12,flexWrap:"wrap"}}>
         <input style={{flex:1,minWidth:160,padding:"9px 14px",borderRadius:12,border:`2px solid ${B.border}`,fontFamily:FS,fontSize:14,background:B.white,color:B.ink}} placeholder="🔍 Search community picks…" value={q} onChange={e=>setQ(e.target.value)}/>
         <select style={{padding:"9px 14px",borderRadius:12,border:`2px solid ${B.border}`,fontFamily:F,fontWeight:700,fontSize:13,background:B.white,color:B.mid,cursor:"pointer"}} value={sort} onChange={e=>setSort(e.target.value)}>
@@ -799,13 +628,9 @@ function CommunityTab({session}) {
       <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:20}}>
         {cats.map(c=><button key={c} className="press" onClick={()=>setFilter(c)} style={{padding:"6px 14px",borderRadius:20,cursor:"pointer",border:`2px solid ${filter===c?B.blue:B.border}`,background:filter===c?B.blueBg:B.white,color:filter===c?B.blue:B.mid,fontFamily:F,fontWeight:700,fontSize:12,transition:"all .14s"}}>{c}</button>)}
       </div>
-
-      {loading?<div style={{textAlign:"center",padding:"40px"}}><Spinner/></div>:(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:14}}>
-          {shown.map((s,i)=><SnackCard key={s.id||i} snack={{...s,reviewer:s.reviewer_name||s.reviewer,avatarEmoji:s.reviewer_name==="Miraya"?"🥨":"🍿"}} onClick={setDetail} showReviewer/>)}
-        </div>
-      )}
-
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:14}}>
+        {shown.map(s=><SnackCard key={s.id} snack={s} onClick={setDetail} showReviewer/>)}
+      </div>
       {detail&&<DetailModal snack={detail} onClose={()=>setDetail(null)} readOnly onEdit={()=>{}} onDelete={()=>{}}/>}
     </div>
   );
@@ -840,8 +665,8 @@ function RecsTab({snacks}) {
       <div style={{background:B.yellowBg,border:`2px solid ${B.yellow}`,borderRadius:18,padding:"18px 22px",marginBottom:20,display:"flex",alignItems:"center",gap:14}}>
         <div style={{fontSize:32}}>🧬</div>
         <div>
-          <div style={{fontFamily:F,fontWeight:900,fontSize:15,color:B.ink,marginBottom:2}}>AI Snack Recs — powered by Claude</div>
-          <div style={{fontFamily:FS,fontSize:13,color:B.mid,lineHeight:1.5}}>Tell us your craving and we'll suggest snacks based on your flavor profile and community picks.</div>
+          <div style={{fontFamily:F,fontWeight:900,fontSize:15,color:B.ink,marginBottom:2}}> Snack Recs ✨ </div>
+          <div style={{fontFamily:FS,fontSize:13,color:B.mid,lineHeight:1.5}}>Tell us what your craving and we'll suggest snacks based on your flavor profile and community picks.</div>
         </div>
       </div>
       <div style={{marginBottom:20}}>
@@ -879,8 +704,7 @@ function RecsTab({snacks}) {
    ROOT APP
 ═══════════════════════════════════════════════════ */
 export default function App() {
-  const [session,setSession] = useState(null);
-  const [showAuth,setShowAuth] = useState(null);   // { user, token }
+  const [session,setSession] = useState(null);   // { user, token }
   const [tab,setTab]         = useState("community");
   const [snacks,setSnacks]   = useState([]);
   const [loadingSnacks,setLoadingSnacks] = useState(false);
@@ -913,21 +737,13 @@ export default function App() {
   const onAuth=(user,token)=>{
     const s={user,token};
     setSession(s);
-    setShowAuth(null);
     try{localStorage.setItem("osg_session",JSON.stringify(s))}catch{}
   };
 
   const logout=async()=>{
-    try{
-      if(!IS_DEMO&&session)await sb.signOut(session.token);
-    }catch{}
-    setSession(null);
-    setSnacks([]);
-    setTab("community");
-    try{
-      localStorage.removeItem("osg_session");
-      localStorage.removeItem("osg_snacks");
-    }catch{}
+    if(!IS_DEMO&&session)await sb.signOut(session.token);
+    setSession(null);setSnacks([]);
+    try{localStorage.removeItem("osg_session")}catch{}
   };
 
   const addSnack=async(f)=>{
@@ -970,37 +786,9 @@ export default function App() {
 
   const openEdit=s=>{setDetail(null);setTimeout(()=>setEditing(s),120)};
 
-  const [communityMsg,setCommunityMsg]=useState(null);
+  if(!session) return <AuthScreen onAuth={onAuth}/>;
 
-  const handleCommunityAction=async(snack,type)=>{
-    if(!session)return;
-    const name=session.user?.user_metadata?.name||session.user?.email?.split("@")[0]||"Snacker";
-    try{
-      if(type==="add"){
-        // Admin: add directly to community approved
-        await sb.addToCommunity(session.token,{
-          name:snack.name,brand:snack.brand,category:snack.category,
-          rating:snack.rating,flavors:snack.flavors,notes:snack.notes,
-          date:snack.date,wba:snack.wba,user_id:session.user.id,
-        },name);
-        setCommunityMsg("🎉 Added to Community Picks!");
-      }else{
-        // User: submit for approval
-        await sb.submitToCommunity(session.token,{
-          name:snack.name,brand:snack.brand,category:snack.category,
-          rating:snack.rating,flavors:snack.flavors,notes:snack.notes,
-          date:snack.date,wba:snack.wba,
-        },session.user.id,name);
-        setCommunityMsg("🙋 Submitted! Miraya will review it soon.");
-      }
-    }catch(e){
-      setCommunityMsg("Something went wrong: "+e.message);
-    }
-    setTimeout(()=>setCommunityMsg(null),3000);
-  };
-
-  // No auth wall - guests can browse freely
-  const userName = session?.user?.user_metadata?.name || session?.user?.email?.split("@")[0] || "Snacker";
+  const userName = session.user?.user_metadata?.name || session.user?.email?.split("@")[0] || "Snacker";
   const TABS=[{id:"community",l:"Community 🏆"},{id:"log",l:"My Log 🍿"},{id:"recs",l:"Get Recs ✨"}];
 
   return (
@@ -1013,55 +801,29 @@ export default function App() {
               <button key={t.id} onClick={()=>setTab(t.id)} className="press" style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontFamily:F,fontWeight:900,fontSize:12,background:tab===t.id?B.coral:"transparent",color:tab===t.id?B.white:B.mid,transition:"all .18s",boxShadow:tab===t.id?"0 3px 12px rgba(240,123,107,.4)":"none"}}>{t.l}</button>
             ))}
           </nav>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {session?(
-              <>
-                <div style={{display:"flex",alignItems:"center",gap:7}}>
-                  <div style={{width:30,height:30,borderRadius:"50%",background:B.coralBg,border:`2px solid ${B.coral}44`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F,fontWeight:900,fontSize:14,color:B.coral}}>
-                    {userName[0].toUpperCase()}
-                  </div>
-                  <span style={{fontFamily:F,fontWeight:700,fontSize:13,color:B.mid}}>{userName}</span>
-                </div>
-                <button onClick={logout} style={{padding:"6px 12px",borderRadius:20,border:`1.5px solid ${B.border}`,background:"transparent",color:B.muted,cursor:"pointer",fontFamily:F,fontWeight:700,fontSize:12}}>Log out</button>
-              </>
-            ):(
-              <>
-                <button onClick={()=>setShowAuth("login")} style={{padding:"7px 14px",borderRadius:20,border:`1.5px solid ${B.border}`,background:"transparent",color:B.mid,cursor:"pointer",fontFamily:F,fontWeight:700,fontSize:12}}>Log in</button>
-                <button onClick={()=>setShowAuth("signup")} className="press" style={{padding:"7px 16px",borderRadius:20,border:"none",background:B.coral,color:B.white,cursor:"pointer",fontFamily:F,fontWeight:800,fontSize:12,boxShadow:"0 3px 10px rgba(240,123,107,.35)"}}>Sign up free 🥨</button>
-              </>
-            )}
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:7}}>
+              <div style={{width:30,height:30,borderRadius:"50%",background:B.coralBg,border:`2px solid ${B.coral}44`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F,fontWeight:900,fontSize:14,color:B.coral}}>
+                {userName[0].toUpperCase()}
+              </div>
+              <span style={{fontFamily:F,fontWeight:700,fontSize:13,color:B.mid}}>{userName}</span>
+            </div>
+            <button onClick={logout} style={{padding:"6px 12px",borderRadius:20,border:`1.5px solid ${B.border}`,background:"transparent",color:B.muted,cursor:"pointer",fontFamily:F,fontWeight:700,fontSize:12}}>Log out</button>
           </div>
         </div>
       </header>
 
       <main style={{maxWidth:880,margin:"0 auto",padding:"22px 20px 100px"}}>
-        {tab==="community" && <CommunityTab session={session}/>}
-        {tab==="log"       && (
-          <div>
-            {communityMsg&&(
-              <div style={{background:B.yellowBg,border:`2px solid ${B.yellow}`,borderRadius:12,padding:"12px 18px",marginBottom:16,fontFamily:F,fontWeight:700,fontSize:14,color:B.ink,textAlign:"center"}}>
-                {communityMsg}
-              </div>
-            )}
-            <LogTab snacks={snacks} onCardClick={setDetail} loading={loadingSnacks} session={session} onCommunityAction={(snack,type)=>{ if(type==="signup"||type==="login"){setShowAuth(type);}else{handleCommunityAction(snack,type);}}} />
-          </div>
-        )}
+        {tab==="community" && <CommunityTab/>}
+        {tab==="log"       && <LogTab snacks={snacks} onCardClick={setDetail} loading={loadingSnacks}/>}
         {tab==="recs"      && <RecsTab snacks={snacks}/>}
       </main>
 
-      <button onClick={()=>session?setShowAdd(true):setShowAuth("signup")} className="press" style={{position:"fixed",bottom:28,right:28,width:62,height:62,borderRadius:"50%",background:B.coral,color:B.white,border:"none",fontSize:30,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 6px 28px rgba(240,123,107,.55)",zIndex:200}}>＋</button>
+      <button onClick={()=>setShowAdd(true)} className="press" style={{position:"fixed",bottom:28,right:28,width:62,height:62,borderRadius:"50%",background:B.coral,color:B.white,border:"none",fontSize:30,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 6px 28px rgba(240,123,107,.55)",zIndex:200}}>＋</button>
 
       {showAdd  && <SnackModal onClose={()=>setShowAdd(false)} onSave={addSnack}/>}
       {editing  && <SnackModal onClose={()=>setEditing(null)}  onSave={updateSnack} edit={editing}/>}
       {detail   && <DetailModal snack={detail} onClose={()=>setDetail(null)} onEdit={openEdit} onDelete={deleteSnack}/>}
-      {showAuth && (
-        <div onClick={e=>e.target===e.currentTarget&&setShowAuth(null)} style={{position:"fixed",inset:0,zIndex:500,background:"rgba(43,43,43,.6)",backdropFilter:"blur(5px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-          <div className="pop" style={{width:"100%",maxWidth:460,position:"relative"}}>
-            <button onClick={()=>setShowAuth(null)} style={{position:"absolute",top:-40,right:0,background:"rgba(255,255,255,.2)",border:"none",borderRadius:"50%",width:32,height:32,color:B.white,cursor:"pointer",fontFamily:F,fontWeight:900,fontSize:16,zIndex:10}}>✕</button>
-            <AuthScreen onAuth={onAuth} initialMode={showAuth}/>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
