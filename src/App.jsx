@@ -191,8 +191,8 @@ function Spinner() {
 /* ═══════════════════════════════════════════════════
    AUTH SCREEN
 ═══════════════════════════════════════════════════ */
-function AuthScreen({onAuth}) {
-  const [mode,setMode]   = useState("login"); // login | signup
+function AuthScreen({onAuth, initialMode="login"}) {
+   const [mode,setMode] = useState(initialMode); // login | signup
   const [name,setName]   = useState("");
   const [email,setEmail] = useState("");
   const [pass,setPass]   = useState("");
@@ -708,8 +708,9 @@ export default function App() {
   const [tab,setTab]         = useState("community");
   const [snacks,setSnacks]   = useState([]);
   const [loadingSnacks,setLoadingSnacks] = useState(false);
-  const [showAdd,setShowAdd] = useState(false);
-  const [detail,setDetail]   = useState(null);
+const [showAdd,setShowAdd] = useState(false);
+const [showAuth,setShowAuth] = useState(null);
+const [detail,setDetail]   = useState(null);
   const [editing,setEditing] = useState(null);
 
   /* Restore session from localStorage */
@@ -818,11 +819,19 @@ const userName = session?.user?.user_metadata?.name || session?.user?.email?.spl
         {tab==="recs"      && <RecsTab snacks={snacks}/>}
       </main>
 
-      <button onClick={()=>setShowAdd(true)} className="press" style={{position:"fixed",bottom:28,right:28,width:62,height:62,borderRadius:"50%",background:B.coral,color:B.white,border:"none",fontSize:30,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 6px 28px rgba(240,123,107,.55)",zIndex:200}}>＋</button>
+      <button onClick={()=>session?setShowAdd(true):setShowAuth("signup")} className="press" style={{position:"fixed",bottom:28,right:28,width:62,height:62,borderRadius:"50%",background:B.coral,color:B.white,border:"none",fontSize:30,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 6px 28px rgba(240,123,107,.55)",zIndex:200}}>＋</button>
 
-      {showAdd  && <SnackModal onClose={()=>setShowAdd(false)} onSave={addSnack}/>}
-      {editing  && <SnackModal onClose={()=>setEditing(null)}  onSave={updateSnack} edit={editing}/>}
-      {detail   && <DetailModal snack={detail} onClose={()=>setDetail(null)} onEdit={openEdit} onDelete={deleteSnack}/>}
+   {showAdd  && <SnackModal onClose={()=>setShowAdd(false)} onSave={addSnack}/>}
+{editing  && <SnackModal onClose={()=>setEditing(null)}  onSave={updateSnack} edit={editing}/>}
+{detail   && <DetailModal snack={detail} onClose={()=>setDetail(null)} onEdit={openEdit} onDelete={deleteSnack}/>}
+{showAuth && (
+  <div onClick={e=>e.target===e.currentTarget&&setShowAuth(null)} style={{position:"fixed",inset:0,zIndex:500,background:"rgba(43,43,43,.6)",backdropFilter:"blur(5px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div style={{background:"white",borderRadius:24,padding:28,width:"100%",maxWidth:420,position:"relative"}}>
+      <button onClick={()=>setShowAuth(null)} style={{position:"absolute",top:12,right:12,background:"#eee",border:"none",borderRadius:"50%",width:30,height:30,cursor:"pointer",fontSize:16}}>✕</button>
+      <AuthScreen onAuth={(user,token)=>{const s={user,token};setSession(s);setShowAuth(null);try{localStorage.setItem("osg_session",JSON.stringify(s))}catch{}}} initialMode={showAuth}/>
+    </div>
+  </div>
+)}
     </div>
   );
 }
