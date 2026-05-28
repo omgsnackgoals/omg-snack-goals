@@ -917,9 +917,16 @@ export default function App() {
   };
 
   const logout=async()=>{
-    if(!IS_DEMO&&session)await sb.signOut(session.token);
-    setSession(null);setSnacks([]);
-    try{localStorage.removeItem("osg_session")}catch{}
+    try{
+      if(!IS_DEMO&&session)await sb.signOut(session.token);
+    }catch{}
+    setSession(null);
+    setSnacks([]);
+    setTab("community");
+    try{
+      localStorage.removeItem("osg_session");
+      localStorage.removeItem("osg_snacks");
+    }catch{}
   };
 
   const addSnack=async(f)=>{
@@ -992,8 +999,7 @@ export default function App() {
   };
 
   // No auth wall - guests can browse freely
-
-  const userName = session.user?.user_metadata?.name || session.user?.email?.split("@")[0] || "Snacker";
+  const userName = session?.user?.user_metadata?.name || session?.user?.email?.split("@")[0] || "Snacker";
   const TABS=[{id:"community",l:"Community 🏆"},{id:"log",l:"My Log 🍿"},{id:"recs",l:"Get Recs ✨"}];
 
   return (
