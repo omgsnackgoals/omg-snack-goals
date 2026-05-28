@@ -786,7 +786,6 @@ export default function App() {
 
   const openEdit=s=>{setDetail(null);setTimeout(()=>setEditing(s),120)};
 
-  if(!session) return <AuthScreen onAuth={onAuth}/>;
 
   const userName = session.user?.user_metadata?.name || session.user?.email?.split("@")[0] || "Snacker";
   const TABS=[{id:"community",l:"Community 🏆"},{id:"log",l:"My Log 🍿"},{id:"recs",l:"Get Recs ✨"}];
