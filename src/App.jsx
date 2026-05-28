@@ -121,6 +121,7 @@ const sb = {
 
 /* ─── DEMO MODE (when Supabase not configured) ─── */
 const IS_DEMO = SUPABASE_URL === "YOUR_SUPABASE_URL";
+const FORCE_GUEST = false; // no auth wall
 const ADMIN_EMAIL = "mirayaberke@gmail.com"; // Admin email - only this user sees admin controls
 
 /* ─── Brand tokens ─── */
